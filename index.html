@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Playhub</title>
+    <meta name="description" content="Seb's playhub: a little 3D island to wander around. Walk into the portals to explore." />
+    <meta name="theme-color" content="#20a4ad" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <canvas id="scene" class="scene" aria-label="3D island. Use W, A, S, D or the arrow keys to walk, hold Shift to run."></canvas>
+
+    <!-- Loading screen -->
+    <div class="loader" data-loader>
+      <p class="loader__brand">the playhub</p>
+      <div class="loader__group">
+        <div class="blocks" aria-hidden="true">
+          <span></span><span></span><span class="last"></span>
+          <span class="clear"></span><span></span><span class="last"></span>
+          <span class="clear"></span><span></span><span class="last"></span>
+        </div>
+        <p class="loader__percent" data-loader-percent aria-live="polite">0%</p>
+      </div>
+      <button type="button" class="loader__start" data-loader-start hidden>Start</button>
+      <p class="loader__status" data-loader-status>Loading</p>
+    </div>
+
+    <!-- Corner toggles (mirror the switches on the island) -->
+    <div class="hud" data-hud>
+      <button type="button" class="hud__btn" data-toggle="theme"></button>
+      <button type="button" class="hud__btn" data-toggle="sound"></button>
+    </div>
+
+    <!-- Portal card -->
+    <div class="card-layer" data-card-layer hidden>
+      <article class="card" data-card role="dialog" aria-modal="false" aria-labelledby="card-title">
+        <img class="card__image" data-card-image data-stagger="right" alt="" />
+        <button type="button" class="card__x" data-card-close data-stagger="right" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
+        </button>
+        <h2 class="card__title" id="card-title" data-card-title data-stagger="left"></h2>
+        <div class="card__body" data-card-body data-stagger="left"></div>
+        <div class="card__socials" data-card-socials data-stagger="left"></div>
+        <div class="card__actions" data-stagger="left">
+          <button type="button" class="card__btn card__btn--close" data-card-close>close</button>
+          <a class="card__btn card__btn--more" data-card-more target="_blank" rel="noopener noreferrer">Learn More</a>
+        </div>
+      </article>
+      <p class="sr-only" data-card-live aria-live="polite"></p>
+    </div>
+
+    <!-- Touch joystick (appears under your thumb) -->
+    <div class="joystick" data-joystick aria-hidden="true">
+      <div class="joystick__base" data-joystick-base><div class="joystick__knob" data-joystick-knob></div></div>
+    </div>
+
+    <!-- Character setup notes (development only) -->
+    <aside class="diag" data-diag hidden aria-label="Character check"></aside>
+
+    <noscript><p class="noscript">The playhub needs JavaScript to run.</p></noscript>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

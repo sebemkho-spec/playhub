@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 450" width="900" height="450">
+  <defs>
+    <linearGradient id="j-bubble" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffa27c"/>
+      <stop offset="1" stop-color="#ff7a45"/>
+    </linearGradient>
+    <linearGradient id="j-wood" x1="0" x2="1">
+      <stop offset="0" stop-color="#c8763a"/>
+      <stop offset="0.6" stop-color="#a95b25"/>
+      <stop offset="1" stop-color="#7f4119"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="420" cy="418" rx="260" ry="20" fill="#000" opacity="0.12"/>
+  <!-- speech bubble -->
+  <path d="M470 40 h250 a70 70 0 0 1 70 70 v70 a70 70 0 0 1 -70 70 h-150 l-96 64 l26 -64 h-30 a70 70 0 0 1 -70 -70 v-70 a70 70 0 0 1 70 -70z" fill="url(#j-bubble)"/>
+  <path d="M470 40 h250 a70 70 0 0 1 70 70" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+  <g fill="none" stroke="#fff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M552 112 q0 -34 38 -34 q38 0 38 32 q0 24 -30 36 q-12 6 -12 26"/>
+    <path d="M690 82 v76"/>
+  </g>
+  <circle cx="586" cy="212" r="14" fill="#fff"/>
+  <circle cx="690" cy="206" r="14" fill="#fff"/>
+  <!-- bongo drums -->
+  <g>
+    <path d="M150 262 h150 l-16 132 a20 20 0 0 1 -20 18 h-78 a20 20 0 0 1 -20 -18z" fill="url(#j-wood)"/>
+    <ellipse cx="225" cy="262" rx="75" ry="24" fill="#f4e3c3"/>
+    <ellipse cx="225" cy="262" rx="75" ry="24" fill="none" stroke="#6d3613" stroke-width="7"/>
+    <rect x="156" y="300" width="138" height="9" rx="4" fill="#6d3613" opacity="0.6"/>
+    <rect x="300" y="300" width="40" height="24" rx="6" fill="#6d3613"/>
+    <path d="M330 286 h118 l-12 108 a18 18 0 0 1 -18 16 h-58 a18 18 0 0 1 -18 -16z" fill="url(#j-wood)"/>
+    <ellipse cx="389" cy="286" rx="59" ry="19" fill="#f4e3c3"/>
+    <ellipse cx="389" cy="286" rx="59" ry="19" fill="none" stroke="#6d3613" stroke-width="6"/>
+    <rect x="336" y="318" width="106" height="8" rx="4" fill="#6d3613" opacity="0.6"/>
+  </g>
+  <!-- taps -->
+  <g fill="none" stroke="#ff8a5c" stroke-width="6" stroke-linecap="round">
+    <path d="M188 214 l-12 -26"/>
+    <path d="M226 206 v-30"/>
+    <path d="M264 214 l12 -26"/>
+    <path d="M370 240 l-8 -22"/>
+    <path d="M408 240 l8 -22"/>
+  </g>
+  <circle cx="826" cy="300" r="8" fill="#ffc94d"/>
+  <circle cx="110" cy="180" r="7" fill="#ff8a5c"/>
+</svg>

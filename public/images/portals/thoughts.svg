@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 450" width="900" height="450">
+  <defs>
+    <linearGradient id="t-cloud" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dcefff"/>
+    </linearGradient>
+    <filter id="t-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+  <ellipse cx="450" cy="420" rx="200" ry="18" fill="#000" opacity="0.1"/>
+  <!-- glow -->
+  <g filter="url(#t-glow)" opacity="0.75" fill="#8fd8ff">
+    <circle cx="380" cy="190" r="90"/>
+    <circle cx="500" cy="160" r="105"/>
+    <circle cx="600" cy="210" r="80"/>
+  </g>
+  <!-- cloud -->
+  <g fill="url(#t-cloud)">
+    <circle cx="318" cy="222" r="62"/>
+    <circle cx="390" cy="168" r="82"/>
+    <circle cx="492" cy="140" r="96"/>
+    <circle cx="590" cy="182" r="78"/>
+    <circle cx="640" cy="236" r="56"/>
+    <circle cx="560" cy="252" r="66"/>
+    <circle cx="452" cy="258" r="70"/>
+    <circle cx="364" cy="256" r="58"/>
+  </g>
+  <!-- trailing puffs -->
+  <circle cx="262" cy="320" r="28" fill="url(#t-cloud)"/>
+  <circle cx="218" cy="364" r="18" fill="url(#t-cloud)"/>
+  <circle cx="188" cy="394" r="11" fill="url(#t-cloud)"/>
+  <!-- scribbled ideas -->
+  <g fill="none" stroke="#8fd8ff" stroke-width="10" stroke-linecap="round">
+    <path d="M392 182 q22 -14 44 0 t44 0 t44 0 t44 0"/>
+    <path d="M410 222 q20 -12 40 0 t40 0 t40 0"/>
+  </g>
+  <!-- light bulb -->
+  <g transform="translate(558 72)">
+    <path d="M0 26 a26 26 0 1 1 40 22 v12 h-28 v-12 a26 26 0 0 1 -12 -22z" fill="#ffc94d"/>
+    <rect x="12" y="62" width="28" height="7" rx="3.5" fill="#c38a22"/>
+    <rect x="15" y="72" width="22" height="6" rx="3" fill="#c38a22"/>
+  </g>
+  <path d="M700 96 l7 18 l18 7 l-18 7 l-7 18 l-7 -18 l-18 -7 l18 -7z" fill="#8fd8ff"/>
+  <path d="M254 120 l5 13 l13 5 l-13 5 l-5 13 l-5 -13 l-13 -5 l13 -5z" fill="#ffc94d"/>
+  <circle cx="744" cy="300" r="7" fill="#8fd8ff"/>
+</svg>

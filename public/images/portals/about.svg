@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 450" width="900" height="450">
+  <defs>
+    <linearGradient id="a-body" x1="0" x2="1">
+      <stop offset="0" stop-color="#fffdf9"/>
+      <stop offset="1" stop-color="#e6ded1"/>
+    </linearGradient>
+    <linearGradient id="a-bubble" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16c4c9"/>
+      <stop offset="1" stop-color="#00a2a8"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="455" cy="412" rx="175" ry="22" fill="#000" opacity="0.12"/>
+  <!-- waving arm -->
+  <rect x="508" y="126" width="44" height="122" rx="22" fill="url(#a-body)" stroke="#d9cfbf" stroke-width="3" transform="rotate(38 530 236)"/>
+  <!-- capsule body -->
+  <rect x="372" y="112" width="166" height="298" rx="83" fill="url(#a-body)"/>
+  <rect x="372" y="112" width="166" height="298" rx="83" fill="none" stroke="#d9cfbf" stroke-width="3"/>
+  <ellipse cx="428" cy="212" rx="10" ry="14" fill="#1d2433"/>
+  <ellipse cx="482" cy="212" rx="10" ry="14" fill="#1d2433"/>
+  <circle cx="431" cy="207" r="3" fill="#fff"/>
+  <circle cx="485" cy="207" r="3" fill="#fff"/>
+  <circle cx="408" cy="246" r="11" fill="#ffb3a7" opacity="0.75"/>
+  <circle cx="502" cy="246" r="11" fill="#ffb3a7" opacity="0.75"/>
+  <path d="M438 248 q17 16 34 0" fill="none" stroke="#1d2433" stroke-width="6" stroke-linecap="round"/>
+  <!-- speech bubble -->
+  <path d="M168 78 h170 a42 42 0 0 1 42 42 v58 a42 42 0 0 1 -42 42 h-86 l-46 40 l8 -40 h-46 a42 42 0 0 1 -42 -42 v-58 a42 42 0 0 1 42 -42z" fill="url(#a-bubble)"/>
+  <g fill="none" stroke="#fff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M196 112 v74 M196 154 q0 -22 22 -22 q22 0 22 22 v32"/>
+    <path d="M276 140 v46"/>
+    <path d="M318 112 v44"/>
+  </g>
+  <circle cx="276" cy="113" r="10" fill="#fff"/>
+  <circle cx="318" cy="184" r="10" fill="#fff"/>
+  <!-- sparkles -->
+  <path d="M690 92 l9 24 l24 9 l-24 9 l-9 24 l-9 -24 l-24 -9 l24 -9z" fill="#ffc94d"/>
+  <path d="M742 220 l6 15 l15 6 l-15 6 l-6 15 l-6 -15 l-15 -6 l15 -6z" fill="#3ff3ff"/>
+  <path d="M150 300 l6 15 l15 6 l-15 6 l-6 15 l-6 -15 l-15 -6 l15 -6z" fill="#ffc94d"/>
+  <circle cx="660" cy="300" r="7" fill="#3ff3ff"/>
+  <circle cx="246" cy="350" r="6" fill="#00aab0"/>
+</svg>
