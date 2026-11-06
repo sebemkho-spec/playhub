@@ -143,6 +143,10 @@ export const PORTALS = [
         <div class="g-row">
           <img src="/gallery/20-ghost-rider.jpg" width="736" height="613" loading="lazy" decoding="async" alt="A painting of a rider among ghosts in a misty graveyard" />
           <img src="/gallery/21-daniel-lions.jpg" width="894" height="596" loading="lazy" decoding="async" alt="Daniel in the Lions’ Den, by Briton Rivière" />
+        </div>
+        <div class="g-note">
+          <p>Thank you so much for exploring this far. Sorry if it feels like a waste of time (it is). I hope the sense of novelty makes up for it.</p>
+          <p>It’s incredibly fun bringing this project to life. At first I really wanted to create a clean, pure “HTML look” with everything but I really had too much time on my hands and I felt super inspired after watching Pixar’s “Soul” recently, and so this happened! Vibe coding really is cracked.</p>
         </div>`,
     shape: 'frame',
     position: [2.319, -14.28],

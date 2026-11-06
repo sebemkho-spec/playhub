@@ -1022,6 +1022,11 @@ body.is-started .eggs {
   color: #7a7a7a;
 }
 
+/* a note under the last pictures (the unlocked Gallery's thank-you), in the cards' usual text */
+.card__body .g-note {
+  margin-top: 1.8em;
+}
+
 /* a row of pictures: each gets a share of the width by its shape (--a, set by card.js), so the
    row's pictures come out the same height; text-heavy ones get a row to themselves */
 .g-row {
