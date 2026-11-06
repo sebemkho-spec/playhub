@@ -1,4 +1,6 @@
 import { socialIcon } from './icons.js';
+import { wireCardMedia } from './cardMedia.js';
+import { Lightbox } from './lightbox.js';
 
 /** A spring curve as a CSS linear() easing, so the card pops like the original's motion springs. */
 function springEasing(stiffness = 170, damping = 19, mass = 1, samples = 48) {
@@ -27,18 +29,33 @@ const SOFT_SPRING = supportsLinear ? springEasing(120, 18) : { easing: 'cubic-be
  * Pointer events only hit the card itself, so you can still look around.
  */
 export class PortalCard {
-  constructor(root, { onClose } = {}) {
+  constructor(root, { onClose, onMedia } = {}) {
     this.root = root;
     this.card = root.querySelector('[data-card]');
+    this.scroll = root.querySelector('[data-card-scroll]');
     this.image = root.querySelector('[data-card-image]');
     this.title = root.querySelector('[data-card-title]');
     this.body = root.querySelector('[data-card-body]');
     this.socials = root.querySelector('[data-card-socials]');
+    this.copied = root.querySelector('[data-card-copied]');
     this.more = root.querySelector('[data-card-more]');
     this.live = root.querySelector('[data-card-live]');
     this.onClose = onClose;
+    this.onMedia = onMedia; // (playing) => …: a song or clip on the card started / everything stopped
+    this.media = null;
+    this.lightbox = new Lightbox();
+    this.layoutClass = null;
     this.openId = null;
     this.animation = null;
+
+    // the bottom edge fades out while there's more to scroll to
+    const check = () => this.checkScroll();
+    this.scroll.addEventListener('scroll', check, { passive: true });
+    if (typeof ResizeObserver !== 'undefined') {
+      const watch = new ResizeObserver(check);
+      watch.observe(this.scroll);
+      watch.observe(this.body);
+    }
 
     root.querySelectorAll('[data-card-close]').forEach((btn) => btn.addEventListener('click', () => this.onClose?.('button')));
     window.addEventListener('keydown', (e) => {
@@ -47,8 +64,31 @@ export class PortalCard {
   }
 
   fill(data) {
+    this.media?.stop(); // anything still playing on the card before this one
+    // layout: 'quote', 'music', … → class card--quote, card--music, … (see styles.css)
+    if (this.layoutClass) this.card.classList.remove(this.layoutClass);
+    this.layoutClass = data.layout ? `card--${data.layout}` : null;
+    if (this.layoutClass) this.card.classList.add(this.layoutClass);
     this.title.textContent = data.title;
     this.body.innerHTML = data.body ?? ''; // your own content from src/data/portals.js
+    this.media = wireCardMedia(this.body, { onChange: (playing) => this.onMedia?.(playing) });
+    // rows of pictures (class="g-row"): each takes a share of the row by its shape (its width and
+    // height, or data-ratio to crop it), so a row's pictures line up at the same height; tap to enlarge
+    this.body.querySelectorAll('.g-row > img').forEach((img) => {
+      const ratio = Number(img.dataset.ratio) || Number(img.getAttribute('width')) / Number(img.getAttribute('height')) || 1;
+      img.style.setProperty('--a', String(ratio));
+      img.tabIndex = 0;
+      img.setAttribute('role', 'button');
+      img.addEventListener('click', () => this.lightbox.open(img));
+      img.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.lightbox.open(img);
+        }
+      });
+    });
+    this.body.querySelectorAll('img').forEach((img) => img.addEventListener('load', () => this.checkScroll()));
+    this.scroll.scrollTop = 0;
     const noImage = () => {
       this.image.hidden = true;
       this.card.classList.remove('has-image');
@@ -67,6 +107,8 @@ export class PortalCard {
     }
 
     this.socials.replaceChildren();
+    this.copied.hidden = true;
+    clearTimeout(this.copiedTimer);
     for (const s of data.socials ?? []) {
       const icon = socialIcon(s.icon);
       if (!icon) {
@@ -83,6 +125,13 @@ export class PortalCard {
       a.title = s.label ?? icon.title;
       a.setAttribute('aria-label', s.label ?? icon.title);
       a.innerHTML = icon.svg;
+      // An email link only opens something if the visitor's computer has a mail app set up
+      // (many people just use Gmail in the browser, and some browsers, like the one in the Claude
+      // app, don't pass email links on at all). So it also copies the address and says so.
+      if (/^mailto:/i.test(s.url)) {
+        const address = decodeURIComponent(s.url.replace(/^mailto:/i, '').split('?')[0]);
+        a.addEventListener('click', () => this.copyAddress(address));
+      }
       this.socials.append(a);
     }
     this.socials.hidden = !this.socials.children.length;
@@ -94,7 +143,41 @@ export class PortalCard {
     } else {
       this.more.hidden = true;
     }
-    this.card.style.setProperty('--accent', data.color ?? '#00aab0');
+    requestAnimationFrame(() => this.checkScroll());
+  }
+
+  /** Copy an email address (for when no mail app opens) and show it under the icons. */
+  async copyAddress(address) {
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(address);
+      copied = true;
+    } catch {
+      // (older browsers, or no clipboard permission: the old way)
+      const box = document.createElement('textarea');
+      box.value = address;
+      box.setAttribute('readonly', '');
+      box.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.append(box);
+      box.select();
+      try {
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      }
+      box.remove();
+    }
+    // either way, the address is right there to read
+    this.copied.textContent = copied ? `Copied ${address}` : address;
+    this.copied.hidden = false;
+    clearTimeout(this.copiedTimer);
+    this.copiedTimer = setTimeout(() => (this.copied.hidden = true), 4000);
+    this.checkScroll();
+  }
+
+  checkScroll() {
+    const s = this.scroll;
+    s.classList.toggle('has-more', s.scrollHeight - s.clientHeight - s.scrollTop > 6);
   }
 
   /** origin = { x, y } in CSS pixels: where on screen the portal is, so the card grows out of it. */
@@ -144,6 +227,8 @@ export class PortalCard {
   close() {
     if (!this.openId) return;
     this.openId = null;
+    this.media?.stop(); // closing the card stops its songs and clips
+    this.lightbox.close();
     this.root.classList.remove('is-open');
     document.body.classList.remove('has-card');
     this.animation?.cancel();

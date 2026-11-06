@@ -5,6 +5,7 @@ import { CONFIG } from '../config.js';
 import { INSTRUCTIONS } from './layout.js';
 import { islandToWorld, islandYawToWorld } from './island.js';
 import { WATER_LEVEL } from './environment.js';
+import { theme } from './theme.js';
 
 /**
  * "WASD to Move / Scroll to Zoom / Click and Drag to Pan" as real 3D letters,
@@ -83,10 +84,10 @@ export function buildInstructions(scene, { font, isTouch }) {
   const icons = isTouch ? ['drag', 'pinch', 'twofinger'] : ['keys', 'mouse', 'pointer'];
 
   const material = new THREE.MeshStandardMaterial({
-    color: '#ffffff',
+    color: theme.props.text3d,
     roughness: 0.5,
     metalness: 0,
-    emissive: '#ffffff',
+    emissive: theme.props.text3d,
     emissiveIntensity: 0,
     transparent: true,
     opacity: 0,
@@ -100,6 +101,7 @@ export function buildInstructions(scene, { font, isTouch }) {
   scene.add(holder);
 
   let built = null;
+  let blockSize = { width: 0, height: 0 }; // the letters' extent at the built size
 
   function build(size) {
     block.clear();
@@ -135,6 +137,7 @@ export function buildInstructions(scene, { font, isTouch }) {
     const height = (lines.length - 1) * lineHeight;
     block.position.set(-maxWidth / 2, height / 2, 0);
     built = size;
+    blockSize = { width: maxWidth, height: height + size * 1.2 };
   }
 
   let placementKey = null;
@@ -157,12 +160,26 @@ export function buildInstructions(scene, { font, isTouch }) {
       holder.rotation.set(-Math.PI / 2 + tilt, islandYawToWorld(p.rot), 0);
     },
 
-    update(time, theme, reveal) {
+    /**
+     * Where the letters can be, for both screen shapes, as circles { x, z, radius, top }
+     * in world space (so the light orbs can keep clear of them). Call after place().
+     */
+    footprints() {
+      return Object.values(INSTRUCTIONS).map((p) => {
+        const k = p.size / built;
+        const halfHeight = (blockSize.height * k) / 2;
+        const world = islandToWorld(p.x, 0, p.z);
+        return { x: world.x, z: world.z, radius: Math.hypot(blockSize.width * k, blockSize.height * k) / 2, top: baseY + 0.1 + Math.sin(tilt) * halfHeight + p.size * 0.3 };
+      });
+    },
+
+    /** mood = the current day/night blend from themeMix.js */
+    update(time, mood, reveal) {
       holder.position.y = baseY + Math.sin(time * 1.1) * 0.08;
       holder.rotation.z = Math.sin(time * 0.6) * 0.012;
       material.opacity = reveal;
       material.visible = reveal > 0.001;
-      material.emissiveIntensity = theme.textGlow;
+      material.emissiveIntensity = mood.textGlow;
       holder.scale.setScalar(0.85 + 0.15 * reveal);
     },
   };

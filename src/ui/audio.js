@@ -1,5 +1,10 @@
 import { CONFIG } from '../config.js';
 import { hasAsset } from '../assets.js';
+import { theme } from '../world/theme.js';
+
+// every sound-effect slot (footsteps loops; the rest play once). 'shatter' = the plain loading page
+// breaking, 'unlock' = the Gallery opening once every easter egg is found.
+const SOUND_EFFECTS = ['footsteps', 'portal', 'toggle', 'whoosh', 'pop', 'shatter', 'unlock'];
 
 /**
  * Background music + footsteps (+ optional sound effects), all from
@@ -8,11 +13,19 @@ import { hasAsset } from '../assets.js';
  */
 export class AudioManager {
   constructor() {
+    this.cfg = { ...CONFIG.audio, ...theme.sounds };
     this.ctx = null;
-    this.enabled = true;
+    this.enabled = true; // the sound toggle
+    this.hushed = false; // a song or clip on a card is playing: the island keeps quiet meanwhile
     this.buffers = {};
     this.music = null;
     this.steps = null;
+    // start downloading the sound effects now, so they're ready the moment sound is allowed
+    this.prefetched = new Map();
+    for (const key of SOUND_EFFECTS) {
+      const url = this.cfg[key];
+      if (url && hasAsset(url)) this.prefetched.set(key, fetch(url).then((res) => res.arrayBuffer()).catch(() => null));
+    }
   }
 
   /** Call synchronously from a click/tap handler. */
@@ -22,21 +35,22 @@ export class AudioManager {
     if (!Ctx || this.ctx) return;
     this.ctx = new Ctx();
     this.master = this.ctx.createGain();
-    this.master.gain.value = enabled ? 1 : 0;
+    this.master.gain.value = this.audible ? 1 : 0;
     this.master.connect(this.ctx.destination);
     this.ctx.resume?.().catch(() => {});
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.ctx.suspend();
-      else if (this.enabled) this.ctx.resume();
+      else if (this.audible) this.ctx.resume();
     });
 
-    const cfg = CONFIG.audio;
+    // files and volumes from config.js, unless the theme brings its own (theme.js → sounds)
+    const cfg = this.cfg;
     const missing = [];
     if (hasAsset(cfg.music)) this.setupMusic(cfg.music);
     else if (cfg.music) missing.push(cfg.music);
 
-    for (const key of ['footsteps', 'portal', 'toggle', 'whoosh', 'pop']) {
+    for (const key of SOUND_EFFECTS) {
       const url = cfg[key];
       if (!url) continue;
       if (!hasAsset(url)) {
@@ -61,14 +75,14 @@ export class AudioManager {
     this.music = el;
     // start now (inside the click) even when muted, so it's allowed to play later
     el.play().catch(() => {});
-    if (this.enabled) this.musicGain.gain.setTargetAtTime(CONFIG.audio.musicVolume, this.ctx.currentTime, 1.2);
+    if (this.enabled) this.musicGain.gain.setTargetAtTime(this.cfg.musicVolume, this.ctx.currentTime, 1.2);
     else setTimeout(() => !this.enabled && el.pause(), 50);
   }
 
   async loadBuffer(key, url) {
     try {
-      const res = await fetch(url);
-      this.buffers[key] = await this.ctx.decodeAudioData(await res.arrayBuffer());
+      const bytes = (await this.prefetched.get(key)) ?? (await (await fetch(url)).arrayBuffer());
+      this.buffers[key] = await this.ctx.decodeAudioData(bytes);
     } catch (err) {
       console.warn(`[playhub audio] Couldn't decode ${url}: ${err.message || err}`);
     }
@@ -94,36 +108,60 @@ export class AudioManager {
     s.active = active;
     s.running = running;
     const t = this.ctx.currentTime;
-    s.gain.gain.setTargetAtTime(active ? CONFIG.audio.footstepsVolume : 0, t, active ? 0.04 : 0.09);
-    s.source.playbackRate.setTargetAtTime(running ? 1.45 : 1, t, 0.1);
+    const c = this.cfg;
+    s.gain.gain.setTargetAtTime(active ? c.footstepsVolume : 0, t, active ? c.footstepsFadeIn : c.footstepsFadeOut);
+    s.source.playbackRate.setTargetAtTime(running ? c.footstepsRunRate : 1, t, 0.1);
   }
 
   play(key, { rate = 1, volume = 1 } = {}) {
     const buffer = this.buffers[key];
-    if (!buffer || !this.ctx || !this.enabled) return;
+    if (!buffer || !this.ctx || !this.audible) return;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = rate;
     const gain = this.ctx.createGain();
-    gain.gain.value = CONFIG.audio.sfxVolume * volume;
+    gain.gain.value = this.cfg.sfxVolume * volume;
     source.connect(gain).connect(this.master);
     source.start();
   }
 
+  /** Whether the island's own sounds can be heard: sound is on, and no song or clip is playing. */
+  get audible() {
+    return this.enabled && !this.hushed;
+  }
+
   setEnabled(on) {
     this.enabled = on;
+    this.fadeTo(0.15);
+  }
+
+  /**
+   * Quiet every island sound (the ambience, the hover, the effects) while a song or clip on a
+   * card plays, and bring them back softly afterwards.
+   */
+  hush(on) {
+    if (this.hushed === on) return;
+    this.hushed = on;
+    this.fadeTo(on ? 0.12 : 0.7);
+  }
+
+  /** Fade everything in or out to match `audible` (`fade` = seconds to get most of the way). */
+  fadeTo(fade) {
     if (!this.ctx) return;
+    const on = this.audible;
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
-    this.master.gain.setTargetAtTime(on ? 1 : 0, t, 0.15);
+    this.master.gain.setTargetAtTime(on ? 1 : 0, t, fade);
+    clearTimeout(this.pauseTimer);
     if (on) {
       this.ctx.resume();
       if (this.music) {
         this.music.play().catch(() => {});
-        this.musicGain.gain.setTargetAtTime(CONFIG.audio.musicVolume, t, 0.8);
+        this.musicGain.gain.setTargetAtTime(this.cfg.musicVolume, t, 0.8);
       }
     } else {
-      setTimeout(() => !this.enabled && this.music?.pause(), 600);
+      // (the ambience pauses once it's silent, and carries on from there when it comes back)
+      this.pauseTimer = setTimeout(() => !this.audible && this.music?.pause(), 600);
     }
   }
 }

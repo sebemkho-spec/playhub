@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "font": "node scripts/build-typeface.mjs"
+    "font": "node scripts/build-typeface.mjs",
+    "sounds": "node scripts/make-ethereal-sounds.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

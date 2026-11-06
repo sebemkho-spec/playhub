@@ -77,6 +77,13 @@ export const CONFIG = {
     exitPadding: 1.1, // walk this much further away and it closes again
   },
 
+  /** The easter egg counter at the top ("0/3"). It counts the portals with shape 'egg'. */
+  easterEggs: {
+    // keep the eggs a visitor has found for their next visit (in their browser, like the
+    // day/night choice); false = everyone starts from 0 every time
+    remember: true,
+  },
+
   /** Drop audio files into /public/audio/ with these names. Missing files are skipped. */
   audio: {
     music: '/audio/music.mp3',
@@ -86,8 +93,12 @@ export const CONFIG = {
     toggle: '/audio/toggle.mp3', // a switch flips
     whoosh: '/audio/whoosh.mp3', // the island rises
     pop: '/audio/pop.mp3', // the character appears
+    unlock: '/audio/unlock.mp3', // the Gallery unlocks (every easter egg found)
     musicVolume: 0.35,
     footstepsVolume: 0.55,
+    footstepsRunRate: 1.45, // the footsteps loop plays this much faster while running
+    footstepsFadeIn: 0.04, // seconds to fade in when you start moving…
+    footstepsFadeOut: 0.09, // …and out when you stop
     sfxVolume: 0.7,
   },
 

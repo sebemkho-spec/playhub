@@ -3,6 +3,9 @@ import { SWITCHES } from './layout.js';
 import { groundHeight } from './island.js';
 import { materials } from './materials.js';
 import { ICON_PATHS } from '../ui/icons.js';
+import { theme } from './theme.js';
+
+const P = theme.props;
 
 /**
  * The two switches lying on the sand: a ball rolls to one side of a pill-shaped
@@ -23,10 +26,11 @@ function createMatcap() {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
   const base = ctx.createRadialGradient(size * 0.42, size * 0.36, size * 0.05, size * 0.5, size * 0.5, size * 0.52);
-  base.addColorStop(0, '#fffaf0');
-  base.addColorStop(0.45, '#efe3cf');
-  base.addColorStop(0.8, '#b9c9c2');
-  base.addColorStop(1, '#3c8f8f');
+  const [c0, c1, c2, c3] = P.switchBall;
+  base.addColorStop(0, c0);
+  base.addColorStop(0.45, c1);
+  base.addColorStop(0.8, c2);
+  base.addColorStop(1, c3);
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, size, size);
   const shine = ctx.createRadialGradient(size * 0.36, size * 0.3, 0, size * 0.36, size * 0.3, size * 0.16);
@@ -46,7 +50,7 @@ export function iconTexture(paths) {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
   ctx.scale(size / 24, size / 24);
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = P.switchIcon;
   ctx.lineWidth = 1.9;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -72,7 +76,7 @@ export function buildSwitches(islandRoot) {
   caseGeo.rotateX(-Math.PI / 2);
   const floorGeo = new THREE.ShapeGeometry(stadium(1.66, 0.64), 24);
   floorGeo.rotateX(-Math.PI / 2);
-  const floorMat = new THREE.MeshStandardMaterial({ color: '#4b5d63', roughness: 0.9 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: P.switchTrack, roughness: 0.9 });
   const ballGeo = new THREE.SphereGeometry(0.5, 32, 24);
   const iconGeo = new THREE.PlaneGeometry(1.9, 1.9);
   iconGeo.rotateX(-Math.PI / 2);
@@ -107,10 +111,10 @@ export function buildSwitches(islandRoot) {
     const ball = new THREE.Mesh(ballGeo, new THREE.MeshMatcapMaterial({ matcap }));
     ball.position.set(1, 0.5, 0);
     ball.castShadow = true;
-    const iconMat = new THREE.MeshBasicMaterial({ map: textures[kind].on, transparent: true, opacity: 0.5, depthWrite: false });
+    const iconMat = new THREE.MeshBasicMaterial({ map: textures[kind].on, transparent: true, opacity: P.switchIconOpacity, depthWrite: false });
     const icon = new THREE.Mesh(iconGeo, iconMat);
     icon.position.set(-3.45, 0.04, 0);
-    const lamp = new THREE.PointLight('#ffffff', 0, 0, 2);
+    const lamp = new THREE.PointLight(P.switchLamp, 0, 0, 2);
     lamp.position.set(0, 1.4, 0.4);
     const hit = new THREE.Mesh(hitGeo, hitMat);
     hit.position.y = 0.55;
@@ -150,7 +154,8 @@ export function buildSwitches(islandRoot) {
       }
     },
 
-    update(dt, theme) {
+    /** mood = the current day/night blend from themeMix.js */
+    update(dt, mood) {
       for (const s of Object.values(switches)) {
         // springy roll toward the active side
         const target = s.on ? 1 : -1;
@@ -161,7 +166,7 @@ export function buildSwitches(islandRoot) {
         s.ball.rotation.z = -s.x / 0.5;
         s.pop += (1 - s.pop) * (1 - Math.exp(-dt * 12));
         s.icon.scale.setScalar(s.pop);
-        s.lamp.intensity = theme.lamps;
+        s.lamp.intensity = mood.switchLamps;
       }
     },
   };

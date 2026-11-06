@@ -67,12 +67,29 @@ export class Physics {
     }
     desc.setCollisionGroups(COLLIDER_GROUPS[spec.group ?? 'props']);
     desc.setFriction(0.2);
+    this.queriesStale = true;
     return this.world.createCollider(desc, this.fixedBody);
   }
 
   step(dt) {
     this.world.timestep = THREE.MathUtils.clamp(dt, 1 / 240, 1 / 30);
     this.world.step();
+    this.queriesStale = false;
+  }
+
+  /**
+   * Height of the highest solid thing (ground or props, not the invisible walls) at world (x, z),
+   * or null over open sea. Only reads the world: nothing moves.
+   */
+  surfaceHeight(x, z, fromY = 40) {
+    // Rapier only indexes new colliders when the world steps, so step once if some were just added.
+    if (this.queriesStale) {
+      this.world.step();
+      this.queriesStale = false;
+    }
+    const ray = new this.RAPIER.Ray({ x, y: fromY, z }, { x: 0, y: -1, z: 0 });
+    const hit = this.world.castRay(ray, fromY + 20, true, undefined, interactionGroups(GROUP.PLAYER, GROUP.TERRAIN | GROUP.PROPS));
+    return hit ? fromY - hit.timeOfImpact : null;
   }
 
   /** Distance along a ray until it hits terrain (used to keep the camera out of the cliffs). */

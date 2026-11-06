@@ -27,10 +27,12 @@ import { buildPortals } from './world/portals.js';
 import { buildSwitches } from './world/switches.js';
 import { buildInstructions } from './world/instructions.js';
 import { CameraRig } from './world/cameraRig.js';
-import { mixTheme } from './world/theme.js';
+import { mixTheme } from './world/themeMix.js';
+import { applySurfaceGlow } from './world/materials.js';
 import { createIntro } from './world/intro.js';
 import { LoadingScreen } from './ui/loader.js';
 import { PortalCard } from './ui/card.js';
+import { EggCounter } from './ui/eggCounter.js';
 import { setupToggles } from './ui/toggles.js';
 import { setupControls } from './ui/controls.js';
 import { AudioManager } from './ui/audio.js';
@@ -42,6 +44,23 @@ const $ = (selector) => document.querySelector(selector);
 const smooth = (t) => t * t * (3 - 2 * t);
 
 if (isTouchDevice) document.documentElement.classList.add('is-touch');
+
+/**
+ * Every picture the cards show (the one above each card, and any <img> or video poster in its
+ * text), so they're loaded before you start and a card never opens half-empty.
+ * (Songs and clips aren't included: they only download when someone presses play.)
+ */
+function cardPictures() {
+  const urls = PORTALS.flatMap((p) => [
+    p.image,
+    // every <img> and video poster in its text, except the ones marked loading="lazy" (like the
+    // Gallery's many pictures, which only download when someone actually scrolls to them)
+    ...[...(p.body ?? '').matchAll(/<(?:img|video)\b[^>]*>/gi)]
+      .filter(([tag]) => !/\bloading="lazy"/i.test(tag))
+      .map(([tag]) => tag.match(/\b(?:src|poster)="([^"]+\.(?:png|jpe?g|webp|avif|gif|svg))"/i)?.[1]),
+  ]);
+  return [...new Set(urls.filter(Boolean))];
+}
 
 async function boot(loading) {
   const { manager } = loading;
@@ -64,8 +83,8 @@ async function boot(loading) {
     new FontLoader(manager).loadAsync(fontUrl, loading.bytes(fontUrl)),
     character.load({ gltfLoader, exists: assetExists, onBytes: loading.bytes }),
     loading.track('fonts', document.fonts?.ready ?? Promise.resolve()),
-    ...PORTALS.filter((p) => p.image).map((p) =>
-      new THREE.ImageLoader(manager).loadAsync(p.image).catch(() => console.warn(`[playhub] Card image not found: ${p.image}`)),
+    ...cardPictures().map((url) =>
+      new THREE.ImageLoader(manager).loadAsync(url).catch(() => console.warn(`[playhub] Card image not found: ${url}`)),
     ),
   ]);
   setTimeout(() => manager.itemEnd('boot'), 0);
@@ -102,21 +121,55 @@ async function boot(loading) {
 
   /* ── UI ────────────────────────────────────────────────────────────────── */
   const audio = new AudioManager();
-  const card = new PortalCard($('[data-card-layer]'), { onClose: () => closeCard() });
+  // a song or clip playing on a card hushes the island's own sounds until it's done
+  const card = new PortalCard($('[data-card-layer]'), { onClose: () => closeCard(), onMedia: (playing) => audio.hush(playing) });
   setupToggles($('[data-hud]'));
+  const eggs = new EggCounter($('[data-eggs]'), {
+    ids: PORTALS.filter((p) => p.shape === 'egg').map((p) => p.id),
+    remember: CONFIG.easterEggs.remember,
+    // (a reset locks everything again; the unlocking itself waits for the last egg's card to close)
+    onChange: () => !eggs.complete && relock(),
+  });
+
+  /* ── Locked portals: the Gallery stays dull and padlocked until every easter egg is found ── */
+  const lockedPortals = portals.items.filter((p) => p.lock);
+  let unlockPending = false;
+  function relock() {
+    unlockPending = false;
+    lockedPortals.forEach((p) => portals.setLocked(p, !eggs.complete));
+  }
+  relock(); // (someone who found them all on an earlier visit finds it open)
+  function unlockAll() {
+    const opened = lockedPortals.filter((p) => portals.unlock(p));
+    if (!opened.length) return;
+    audio.play('unlock');
+    $('[data-eggs-live]').textContent = `${opened.map((p) => p.data.locked.title ?? p.data.title).join(' and ')} unlocked!`;
+  }
+  /** What a portal's card shows: its `locked` version while it's still locked. */
+  const cardFor = (data) =>
+    data.locked && !eggs.complete
+      ? { id: data.id, title: data.locked.title ?? data.title, body: (data.locked.body ?? '').replaceAll('{eggs}', String(eggs.total)), layout: data.locked.layout ?? 'locked' }
+      : data;
 
   const projected = new THREE.Vector3();
   function openCard(item) {
     item.latched = true;
     store.set({ activePortal: item.data.id });
     projected.copy(item.focusWorld).project(camera);
-    card.open(item.data, { x: ((projected.x + 1) / 2) * window.innerWidth, y: ((1 - projected.y) / 2) * window.innerHeight });
+    card.open(cardFor(item.data), { x: ((projected.x + 1) / 2) * window.innerWidth, y: ((1 - projected.y) / 2) * window.innerHeight });
     audio.play('portal');
+    // counts it, if it's an easter egg seen for the first time; the last one unlocks the Gallery
+    // once its card closes (so the burst of light isn't hidden behind the card)
+    if (eggs.find(item.data.id) && eggs.complete && lockedPortals.length) unlockPending = true;
   }
   function closeCard() {
     if (!store.get().activePortal) return;
     store.set({ activePortal: null });
     card.close();
+    if (unlockPending) {
+      unlockPending = false;
+      setTimeout(unlockAll, 350);
+    }
   }
 
   const raycaster = new THREE.Raycaster();
@@ -149,12 +202,14 @@ async function boot(loading) {
   /* ── Day / night ───────────────────────────────────────────────────────── */
   let themeT = store.get().theme === 'dark' ? 1 : 0;
   let themeGoal = themeT;
-  const theme = mixTheme(themeT);
+  const mood = mixTheme(themeT); // the current day/night blend of the active theme
   const applyTheme = () => {
-    mixTheme(smooth(themeT), theme);
-    env.applyTheme(theme);
-    bloom.intensity = theme.bloom;
-    renderer.toneMappingExposure = theme.exposure;
+    mixTheme(smooth(themeT), mood);
+    env.applyTheme(mood);
+    applySurfaceGlow(mood.surfaceGlow);
+    character.setGlow(mood.characterGlow);
+    bloom.intensity = mood.bloom;
+    renderer.toneMappingExposure = mood.exposure;
   };
   applyTheme();
   switches.set('theme', store.get().theme === 'light', true);
@@ -176,9 +231,10 @@ async function boot(loading) {
   /* ── Intro ─────────────────────────────────────────────────────────────── */
   let reveal = 0;
   let playerActive = false;
+  // The character stands on the island from the start and rises out of the sea with it
+  // (see the frame loop); once the island has landed, it can move.
   const spawnPlayer = () => {
-    player.teleport(spawn.clone().add(new THREE.Vector3(0, 2.4, 0)), spawnYaw);
-    character.root.visible = true;
+    player.teleport(spawn.clone(), spawnYaw);
     playerActive = true;
     input.enabled = true;
     audio.play('pop', { volume: 0.8 });
@@ -189,6 +245,7 @@ async function boot(loading) {
     { at: 0.5, duration: 2.0, run: (k) => (island.flora.position.y = -3 * (1 - k)) },
     { at: 0.8, duration: 1.5, run: (k) => (island.statues.position.y = -4 * (1 - k)) },
     { at: 0.8, duration: 1.0, run: (k) => switches.group.forEach((g) => (g.position.y = g.userData.baseY - 2 * (1 - k))) },
+    { at: 1.3, duration: 1.5, ease: 'linear', run: (k) => env.revealFloatingLights(k) }, // once the island is up
     { at: 1.55, run: spawnPlayer },
     { at: 1.9, duration: 0.9, ease: 'linear', run: (k) => (reveal = k) },
   ]);
@@ -196,9 +253,10 @@ async function boot(loading) {
   function start() {
     audio.unlock(store.get().sound); // must happen inside the click
     started = true;
+    character.root.visible = true;
     store.set({ started: true });
     document.body.classList.add('is-started');
-    loading.hide();
+    loading.hide({ sound: (name) => audio.play(name) });
     // open on a wider shot of the island; it eases back to the character once you walk
     rig.setOpeningShot({ pan: islandCenter.clone().sub(spawn).setY(0).multiplyScalar(0.4), distance: CONFIG.camera.openingDistance });
     if (prefersReducedMotion) {
@@ -231,7 +289,7 @@ async function boot(loading) {
   if (import.meta.env.DEV || DEBUG) {
     window.__playhub = {
       THREE, scene, camera, renderer, rig, player, physics, portals, store, input, character, card, switches, audio,
-      islandToWorld, groundHeight,
+      islandToWorld, groundHeight, loading, eggs, unlockAll,
       /** Move the player to island coordinates (x, z). */
       teleport(x, z, yawDeg = 0) {
         const p = islandToWorld(x, groundHeight(x, z) + 0.05, z);
@@ -250,6 +308,13 @@ async function boot(loading) {
 
   // warm up: compile shaders and draw a frame behind the loading screen
   rig.update(1 / 60, player.position, false);
+  // light orbs (when the theme has them) find clear spots, so none float through walls, props or the 3D text
+  const textSpots = instructions.footprints();
+  env.settleFloatingLights((x, z) => {
+    let top = physics.surfaceHeight(x, z);
+    for (const s of textSpots) if (Math.hypot(x - s.x, z - s.z) < s.radius) top = Math.max(top ?? -Infinity, s.top);
+    return top;
+  });
   await renderer.compileAsync(scene, camera).catch(() => {});
   composer.render(1 / 60);
 
@@ -278,6 +343,7 @@ async function boot(loading) {
     physics.step(dt);
 
     character.root.position.copy(player.position);
+    character.root.position.y += island.root.position.y; // rides up with the island during the opening (0 after)
     character.root.rotation.y = player.yaw;
     character.update(dt, { state: playerActive ? player.state : 'idle', speed: player.speed, grounded: player.grounded });
 
@@ -286,9 +352,9 @@ async function boot(loading) {
       if (enter) openCard(enter);
       else if (leave) closeCard();
     }
-    portals.update(dt, time, theme, store.get().activePortal);
-    switches.update(dt, theme);
-    instructions.update(time, theme, reveal);
+    portals.update(dt, time, mood, store.get().activePortal);
+    switches.update(dt, mood);
+    instructions.update(time, mood, reveal);
     rig.update(dt, player.position, player.speed > 0.3);
     env.update(time, camera, view.pixelRatio);
     audio.footsteps(playerActive && player.grounded && player.state !== 'idle', player.running);
@@ -304,6 +370,9 @@ async function boot(loading) {
     Object.assign(window.__playhub, {
       composer,
       start,
+      /** Stop / restart the browser-driven loop (so tests can step frames exactly). */
+      pause: () => renderer.setAnimationLoop(null),
+      resume: () => renderer.setAnimationLoop((timestamp) => frame(timestamp)),
       /**
        * Advance the world by `seconds` at 60 fps without waiting for the browser (for tests).
        * `move` = { x, y, run } like the joystick: x = right, y = forward (screen-relative).

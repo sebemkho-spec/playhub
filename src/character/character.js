@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { describeRig, checkClip, renameTracks, stripRootMotion } from './animationCheck.js';
+import { theme } from '../world/theme.js';
+import { soulBodyMaterial, soulHaloMaterial, fadeWhenFacingAway, setSoulGlow } from './soulLook.js';
 
 const STATES = ['idle', 'walk', 'run'];
 const DEG = Math.PI / 180;
@@ -30,6 +32,7 @@ export class Character {
     this.speedScale = { idle: 1, walk: 1, run: 1 };
     this.state = null;
     this.placeholder = null;
+    this.soul = null; // the 'soul' capsule's materials, when the theme uses that look
     this.phase = 0;
     this.blend = { walk: 0, run: 0 };
     this.squash = 0;
@@ -213,15 +216,27 @@ export class Character {
 
   usePlaceholder() {
     const group = new THREE.Group();
+    const P = theme.props;
+    const soul = P.placeholderStyle === 'soul';
+    const height = 0.34 * 2 + 1.12; // the capsule's full height
+    if (soul) {
+      // the soft halo goes in first so it's drawn behind the body
+      const halo = new THREE.Mesh(new THREE.CapsuleGeometry(0.34 * 1.35, 1.12, 8, 24), soulHaloMaterial(P.soul, height));
+      halo.position.y = 0.9;
+      group.add(halo);
+      this.soul = { halo: halo.material };
+    }
     const body = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.34, 1.12, 8, 24),
-      new THREE.MeshStandardMaterial({ color: '#f7f2ea', roughness: 0.5 }),
+      soul ? soulBodyMaterial(P.soul, height) : new THREE.MeshStandardMaterial({ color: P.placeholderBody, roughness: 0.5 }),
     );
+    if (soul) this.soul.body = body.material;
     body.position.y = 0.9;
     body.castShadow = true;
     body.receiveShadow = true;
     const eyeGeo = new THREE.SphereGeometry(0.048, 16, 12);
-    const eyeMat = new THREE.MeshStandardMaterial({ color: '#1d2433', roughness: 0.25 });
+    const eyeMat = new THREE.MeshStandardMaterial({ color: P.placeholderEyes, roughness: 0.25 });
+    if (soul) fadeWhenFacingAway(eyeMat);
     for (const x of [-0.12, 0.12]) {
       const eye = new THREE.Mesh(eyeGeo, eyeMat);
       eye.position.set(x, 1.42, 0.305);
@@ -229,7 +244,7 @@ export class Character {
       group.add(eye);
     }
     const blushGeo = new THREE.CircleGeometry(0.05, 16);
-    const blushMat = new THREE.MeshBasicMaterial({ color: '#ffb3a7', transparent: true, opacity: 0.7 });
+    const blushMat = new THREE.MeshBasicMaterial({ color: P.placeholderBlush, transparent: true, opacity: 0.7 });
     for (const x of [-0.2, 0.2]) {
       const blush = new THREE.Mesh(blushGeo, blushMat);
       blush.position.set(x, 1.33, 0.3);
@@ -275,6 +290,11 @@ export class Character {
       this.mixer.update(dt);
     }
     if (this.placeholder) this.animatePlaceholder(dt, speed, grounded);
+  }
+
+  /** Day/night glow for the 'soul' capsule (theme day/night characterGlow); nothing else to do. */
+  setGlow(k) {
+    if (this.soul) setSoulGlow(this.soul, theme.props.soul, k);
   }
 
   /** A little procedural bounce so the capsule still reads as idle / walk / run. */

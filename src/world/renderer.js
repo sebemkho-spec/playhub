@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode } from 'postprocessing';
 import { CONFIG } from '../config.js';
+import { theme } from './theme.js';
 
 /**
  * Renderer + post-processing, matching the original: HDR render, bloom on
- * anything brighter than 0.9 (the portals), then ACES filmic tone mapping.
+ * anything bright enough (the portals), then ACES filmic tone mapping.
+ * Bloom and exposure values come from src/world/theme.js.
  */
 export function createRenderer(canvas, { isMobile }) {
   const r = CONFIG.render;
@@ -22,7 +24,7 @@ export function createRenderer(canvas, { isMobile }) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.NoToneMapping; // done by the ToneMappingEffect below
-  renderer.toneMappingExposure = 1.7;
+  renderer.toneMappingExposure = theme.day.exposure;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, window.innerWidth / window.innerHeight, 0.5, 700);
@@ -31,11 +33,11 @@ export function createRenderer(canvas, { isMobile }) {
   const composer = new EffectComposer(renderer, { multisampling: samples, frameBufferType: THREE.HalfFloatType });
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new BloomEffect({
-    intensity: 0.9,
-    luminanceThreshold: 0.9,
-    luminanceSmoothing: 0.03,
+    intensity: theme.day.bloom, // day/night strength is updated live from the theme
+    luminanceThreshold: theme.effects.bloomThreshold,
+    luminanceSmoothing: theme.effects.bloomSmoothing,
     mipmapBlur: true,
-    radius: 0.8,
+    radius: theme.effects.bloomRadius,
     levels: isMobile ? 6 : 8,
   });
   const toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });

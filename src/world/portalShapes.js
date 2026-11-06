@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { materials } from './materials.js';
+import { theme } from './theme.js';
 
 /**
  * Portal shapes. Each builder returns a group in portal space:
@@ -213,7 +215,7 @@ function ring({ material, color }) {
   }
 
   // glowing label rim
-  const rimMaterial = new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(2.2) });
+  const rimMaterial = new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(theme.portals.ringRimGlow) });
   const rim = new THREE.Mesh(new THREE.TorusGeometry(rIn, 0.035, 8, 64), rimMaterial);
   rim.position.y = cy;
   group.add(rim);
@@ -230,7 +232,7 @@ function ring({ material, color }) {
   }
 
   // floating notes
-  const noteMaterial = new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(1.8) });
+  const noteMaterial = new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(theme.portals.noteGlow) });
   const notes = [makeNote(noteMaterial, false), makeNote(noteMaterial, true), makeNote(noteMaterial, false)];
   notes.forEach((n) => group.add(n));
 
@@ -270,21 +272,23 @@ function frame({ material }) {
   plinth.position.y = plinthH / 2;
   group.add(plinth);
 
+  // its own copy of the gold, so this frame alone can lose its colour while it's locked
+  const gold = materials.gold.clone();
   const horiz = new THREE.BoxGeometry(W + bar * 2, bar, depth);
   const vert = new THREE.BoxGeometry(bar, H, depth);
-  const bottom = mesh(horiz, materials.gold);
+  const bottom = mesh(horiz, gold);
   bottom.position.set(0, y0 + bar / 2, 0);
-  const top = mesh(horiz, materials.gold);
+  const top = mesh(horiz, gold);
   top.position.set(0, y0 + bar * 1.5 + H, 0);
-  const left = mesh(vert, materials.gold);
+  const left = mesh(vert, gold);
   left.position.set(-(W / 2 + bar / 2), cy, 0);
-  const right = mesh(vert, materials.gold);
+  const right = mesh(vert, gold);
   right.position.set(W / 2 + bar / 2, cy, 0);
   group.add(bottom, top, left, right);
 
   // inner lip
-  const lipMat = materials.gold.clone();
-  lipMat.color.multiplyScalar(0.72);
+  const lipMat = gold.clone();
+  lipMat.color.multiplyScalar(theme.portals.frameLipShade);
   const lipH = new THREE.BoxGeometry(W + 0.06, 0.05, depth * 0.6);
   const lipV = new THREE.BoxGeometry(0.05, H + 0.06, depth * 0.6);
   for (const y of [y0 + bar + 0.01, y0 + bar + H - 0.01]) {
@@ -307,12 +311,12 @@ function frame({ material }) {
     [W / 2 + bar / 2, y0 + bar * 1.5 + H],
   ]) {
     for (const z of [depth / 2, -depth / 2]) {
-      const k = mesh(knob, materials.gold);
+      const k = mesh(knob, gold);
       k.position.set(x, y, z);
       group.add(k);
     }
   }
-  const crest = mesh(new THREE.SphereGeometry(0.2, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), materials.gold);
+  const crest = mesh(new THREE.SphereGeometry(0.2, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), gold);
   crest.position.set(0, y0 + bar * 2 + H, 0);
   crest.scale.set(1.4, 1, 0.5);
   group.add(crest);
@@ -326,6 +330,9 @@ function frame({ material }) {
     surface,
     focus: new THREE.Vector3(0, cy, 0),
     colliders: [box([0, cy, 0], [W / 2 + bar, H / 2 + bar, depth / 2 + 0.02]), box([0, plinthH / 2, 0], [1.125, plinthH / 2, 0.33])],
+    tint: [gold, lipMat], // the materials that turn dull while the portal is locked
+    lockAt: new THREE.Vector3(0, cy - 0.1, depth / 2 + 0.2), // where a padlock floats, just in front
+    burstSize: [W + bar * 2, H + bar * 2 + y0], // the frame's size, for the sparkles when it unlocks
   };
 }
 
@@ -390,7 +397,7 @@ function bubble({ material, color, font }) {
     textGeo.computeBoundingBox();
     const bb = textGeo.boundingBox;
     textGeo.translate(-(bb.max.x + bb.min.x) / 2, -(bb.max.y + bb.min.y) / 2, 0);
-    const textMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#fffaf0').multiplyScalar(1.6) });
+    const textMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.portals.bubbleText).multiplyScalar(theme.portals.bubbleTextGlow) });
     for (const side of [1, -1]) {
       const t = new THREE.Mesh(textGeo, textMat);
       t.position.set(0.05, cy, side * 0.06);
@@ -501,5 +508,276 @@ function cloud({ material }) {
   };
 }
 
-export const SHAPES = { gate, ring, frame, bubble, cloud };
+/* ───────────────────────── egg: a painted easter egg resting in a ring of puffs ───────────────────────── */
+const TAU = Math.PI * 2;
+/** A repeatable "random" number in 0-1 for any input. */
+const hash = (n) => {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+
+/** Egg outline from its bottom (y = 0) to its tip (y = height): widest a little below the middle. */
+function eggOutline(height, radius, steps = 40) {
+  const points = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * Math.PI;
+    points.push(new THREE.Vector2(radius * Math.sin(t) * (1 + 0.16 * Math.cos(t)), (height / 2) * (1 - Math.cos(t))));
+  }
+  return points;
+}
+
+const eggPaintGlsl = /* glsl */ `
+  varying vec3 vEgg;
+  uniform float uTime;
+  uniform float uActive;
+  uniform float uIntensity;
+  uniform float uEggHeight;
+  uniform vec3 uPaintBand;
+  uniform vec3 uPaintWave;
+  uniform vec3 uPaintDots;
+  uniform vec3 uPaintTop;
+  uniform float uPaintGlow;
+  uniform float uShellGlow;
+  uniform float uRim;
+
+  // 1 inside a band of half-width w around d = 0, with soft edges
+  float eggBand(float d, float w) {
+    return 1.0 - smoothstep(w - 0.012, w + 0.012, abs(d));
+  }
+
+  // a row of n round dots around the egg at height y0; also says which dot this is
+  float eggDots(float angle, float r, float y, float y0, float n, float size, out float index) {
+    float k = angle * n / 6.2831853;
+    index = floor(k + 0.5);
+    float across = (k - index) * 6.2831853 / n * r; // distance around the egg to the nearest dot
+    return 1.0 - smoothstep(size * 0.7, size, length(vec2(across, y - y0)));
+  }
+`;
+
+/**
+ * The egg's paint is drawn by the shader (no textures): wavy ribbons, a wide band with dots,
+ * and a ring of small dots near the tip. It glows, catches a glint now and then, and shares
+ * the portal's time / brightness / "card open" values, so it brightens like the other portals.
+ */
+function eggMaterial(look, portal, height) {
+  const material = new THREE.MeshStandardMaterial({ color: look.shell, roughness: look.roughness ?? 0.4 });
+  const [band, wave, dots, top] = look.paint.map((c) => new THREE.Color(c));
+  const uniforms = {
+    uTime: portal.uniforms.uTime,
+    uActive: portal.uniforms.uActive,
+    uIntensity: portal.uniforms.uIntensity,
+    uEggHeight: { value: height },
+    uPaintBand: { value: band },
+    uPaintWave: { value: wave },
+    uPaintDots: { value: dots },
+    uPaintTop: { value: top },
+    uPaintGlow: { value: look.paintGlow },
+    uShellGlow: { value: look.shellGlow },
+    uRim: { value: look.rim ?? 0 },
+  };
+  material.userData.uniforms = uniforms; // (handy for trying values live in the console)
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vEgg;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvEgg = position;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${eggPaintGlsl}`)
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        float eggH = vEgg.y / uEggHeight; // 0 at the bottom, 1 at the tip
+        // (atan(0, 0) is undefined, and a NaN here would be smeared across the screen by the bloom)
+        float eggAngle = abs(vEgg.x) + abs(vEgg.z) < 1e-6 ? 0.0 : atan(vEgg.z, vEgg.x);
+        float eggR = length(vEgg.xz);
+        float dotIndex;
+        float topIndex;
+        float wavesLow = eggBand(eggH - (0.25 + 0.035 * sin(eggAngle * 6.0)), 0.032);
+        float wavesHigh = eggBand(eggH - (0.71 - 0.03 * sin(eggAngle * 6.0)), 0.028);
+        float eggStripe = eggBand(eggH - 0.485, 0.075);
+        float bandDots = eggDots(eggAngle, eggR, vEgg.y, 0.485 * uEggHeight, 8.0, 0.045 * uEggHeight, dotIndex) * eggStripe;
+        float topDots = eggDots(eggAngle, eggR, vEgg.y, 0.86 * uEggHeight, 5.0, 0.032 * uEggHeight, topIndex);
+        vec3 eggColor = diffuseColor.rgb;
+        eggColor = mix(eggColor, uPaintWave, wavesLow);
+        eggColor = mix(eggColor, uPaintBand, eggStripe);
+        eggColor = mix(eggColor, uPaintDots, bandDots);
+        eggColor = mix(eggColor, uPaintWave, wavesHigh);
+        eggColor = mix(eggColor, uPaintTop, topDots);
+        float eggPainted = max(max(wavesLow, wavesHigh), max(eggStripe, topDots));
+        diffuseColor.rgb = eggColor;`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        float twinkle = 0.5 + 0.5 * sin(uTime * 2.4 + dotIndex * 2.1);
+        float eggGlow = mix(uShellGlow, uPaintGlow, eggPainted) * (1.0 + bandDots * twinkle * 0.8);
+        // a soft glint that sweeps up the egg every few seconds
+        float glintAt = (eggH - (fract(uTime * 0.21) * 1.5 - 0.25)) / 0.07;
+        float glint = exp(-glintAt * glintAt);
+        // (clamped: pow() of a negative number is NaN)
+        float eggRim = pow(clamp(1.0 - abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), 2.5);
+        vec3 eggRimColor = mix(uPaintWave, uPaintBand, eggH);
+        totalEmissiveRadiance += (eggColor * eggGlow + vec3(0.6) * glint * (0.25 + uShellGlow) + eggRimColor * eggRim * uRim)
+          * uIntensity * (1.0 + uActive * 1.1);`,
+      );
+  };
+  material.customProgramCacheKey = () => 'playhub-easter-egg';
+  return material;
+}
+
+function egg({ material: portal }) {
+  const look = theme.portals.egg;
+  const group = new THREE.Group();
+  const H = 0.95;
+  const R = 0.35;
+
+  // rocks on its round bottom every few seconds (pivoting there), slowly turning all the while
+  const wobble = new THREE.Group();
+  const spin = new THREE.Group();
+  group.add(wobble);
+  wobble.add(spin);
+  const shell = mesh(new THREE.LatheGeometry(eggOutline(H, R), 48), eggMaterial(look, portal, H));
+  shell.name = 'portal-surface';
+  spin.add(shell);
+
+  // a ring of soft puffs to rest in (the bush materials: glowing puffs, or grass on the island)
+  const puffGeo = new THREE.IcosahedronGeometry(1, 2);
+  const nestMaterials = [materials.lightBushes, materials.darkBushes];
+  for (let i = 0; i < 10; i++) {
+    const size = 0.075 + 0.03 * hash(i + 0.5);
+    const a = (i / 10) * TAU + (hash(i * 2.3) - 0.5) * 0.35;
+    const reach = R * 0.94 + (hash(i * 5.1) - 0.5) * 0.04;
+    const puff = mesh(puffGeo, nestMaterials[i % 2]);
+    puff.scale.setScalar(size);
+    puff.position.set(Math.cos(a) * reach, size * 0.55, Math.sin(a) * reach);
+    group.add(puff);
+  }
+
+  // little sparkles that drift up off it and fade, only on its open side (+Z), away from any wall behind
+  const sparkleColor = new THREE.Color(look.sparkle).multiplyScalar(look.sparkleGlow);
+  const sparkleMaterial = new THREE.MeshBasicMaterial({ color: sparkleColor.clone() });
+  const sparkleGeo = new THREE.SphereGeometry(0.026, 10, 8);
+  const sparkles = Array.from({ length: 5 }, () => {
+    const s = new THREE.Mesh(sparkleGeo, sparkleMaterial);
+    group.add(s);
+    return s;
+  });
+
+  return {
+    group,
+    surface: shell,
+    focus: new THREE.Vector3(0, H / 2, 0),
+    // its light shines from inside, so the sand and any wall around it glow (a small egg sits close
+    // to the ground, so it needs much less light than the big portals)
+    lightAt: new THREE.Vector3(0, H / 2, 0),
+    lightScale: look.light,
+    colliders: [{ kind: 'cylinder', center: new THREE.Vector3(0, H / 2, 0), halfHeight: H / 2, radius: R }],
+    update(time) {
+      spin.rotation.y = time * 0.35;
+      const period = 4.6;
+      const round = Math.floor(time / period);
+      const t = time - round * period;
+      const tilt = 0.11 * Math.exp(-t * 2.6) * Math.sin(t * TAU * 2.1);
+      const towards = hash(round) * TAU; // a different way each time
+      wobble.rotation.set(Math.cos(towards) * tilt, 0, Math.sin(towards) * tilt);
+
+      const glow = portal.uniforms.uIntensity.value * (1 + portal.uniforms.uActive.value);
+      sparkleMaterial.color.copy(sparkleColor).multiplyScalar(glow);
+      sparkles.forEach((s, i) => {
+        const life = time / (2.8 + i * 0.37) + i * 0.31;
+        const n = Math.floor(life);
+        const u = life - n;
+        const a = (hash(n * 7.13 + i * 3.7) - 0.5) * 2.6; // within about 75° of straight ahead
+        const reach = 0.42 + 0.22 * u;
+        s.position.set(Math.sin(a) * reach, 0.3 + hash(n + i * 11.1) * 0.35 + 0.6 * u, Math.cos(a) * reach);
+        const size = Math.sin(Math.PI * u) * (0.8 + 0.4 * hash(n * 3.3 + i));
+        s.scale.setScalar(Math.max(size, 0.001));
+        s.visible = size > 0.02;
+      });
+    },
+  };
+}
+
+/* ───────────────────────── padlock: floats in front of a locked portal ───────────────────────── */
+const smooth = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * A soft little padlock (rounded, like the one on the locked card). `update(time)` keeps it
+ * gently bobbing; `open(t)` plays it unlocking (t = seconds since): the shackle pops up and
+ * swings open, it flashes, then shrinks away. `reset()` locks it again.
+ */
+export function padlock() {
+  const look = theme.portals.padlock;
+  const group = new THREE.Group();
+  const lock = new THREE.Group(); // (bobs and scales; `group` stays where it's placed)
+  group.add(lock);
+  const glow = (c, k) => ({ color: c, emissive: new THREE.Color(c), emissiveIntensity: k });
+  const bodyMat = new THREE.MeshStandardMaterial({ ...glow(look.body, look.glow), roughness: 0.55 });
+  const shackleMat = new THREE.MeshStandardMaterial({ ...glow(look.shackle, look.glow * 0.6), roughness: 0.3, metalness: 0.45 });
+  const holeMat = new THREE.MeshBasicMaterial({ color: look.keyhole });
+
+  const body = mesh(new RoundedBoxGeometry(0.46, 0.38, 0.16, 4, 0.07), bodyMat);
+  lock.add(body);
+
+  // the keyhole on its front: a round top and a flared slot
+  const hole = new THREE.Shape();
+  hole.absarc(0, 0.035, 0.045, -Math.PI * 0.3, Math.PI * 1.3, false);
+  hole.lineTo(-0.035, -0.085);
+  hole.quadraticCurveTo(0, -0.095, 0.035, -0.085);
+  hole.closePath();
+  const keyhole = new THREE.Mesh(new THREE.ShapeGeometry(hole, 16), holeMat);
+  keyhole.position.set(0, -0.005, 0.0805);
+  lock.add(keyhole);
+
+  // the shackle: a soft U that pivots on its left leg, so it can swing open
+  const R = 0.125;
+  const tube = 0.038;
+  const leg = 0.1;
+  const pivot = new THREE.Group();
+  const pivotY = 0.19;
+  pivot.position.set(-R, pivotY, 0);
+  const arc = mesh(new THREE.TorusGeometry(R, tube, 12, 28, Math.PI), shackleMat);
+  arc.position.set(R, leg, 0);
+  const legGeo = new THREE.CylinderGeometry(tube, tube, leg + 0.05, 12);
+  for (const x of [0, R * 2]) {
+    const l = mesh(legGeo, shackleMat);
+    l.position.set(x, (leg - 0.05) / 2, 0);
+    pivot.add(l);
+  }
+  pivot.add(arc);
+  lock.add(pivot);
+
+  const reset = () => {
+    group.visible = true;
+    lock.scale.setScalar(1);
+    pivot.position.y = pivotY;
+    pivot.rotation.y = 0;
+    bodyMat.emissiveIntensity = look.glow;
+    shackleMat.emissiveIntensity = look.glow * 0.6;
+  };
+
+  return {
+    group,
+    reset,
+    update(time) {
+      lock.position.y = Math.sin(time * 1.3) * 0.025;
+      lock.rotation.z = Math.sin(time * 0.8) * 0.045;
+    },
+    open(t) {
+      pivot.position.y = pivotY + 0.08 * smooth(0, 0.2, t);
+      pivot.rotation.y = -1.35 * smooth(0.12, 0.42, t);
+      const flash = smooth(0.15, 0.3, t) * (1 - smooth(0.3, 0.7, t));
+      bodyMat.emissiveIntensity = look.glow + flash * 2.2;
+      shackleMat.emissiveIntensity = look.glow * 0.6 + flash * 2.2;
+      lock.scale.setScalar((1 + 0.14 * smooth(0.15, 0.32, t)) * (1 - smooth(0.36, 0.72, t)) + 0.001);
+      lock.position.y += 0.1 * smooth(0.3, 0.72, t);
+      group.visible = t < 0.72;
+    },
+  };
+}
+
+export const SHAPES = { gate, ring, frame, bubble, cloud, egg };
 export { DEG };

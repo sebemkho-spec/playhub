@@ -1,34 +1,49 @@
 import * as THREE from 'three';
+import { theme } from './theme.js';
 
-/** Colours are the original scene's linear values, so the island matches it. */
-const linear = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace);
-
-function standard(color, roughness = 1, extra = {}) {
-  return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
+/**
+ * One shared material per surface in the active theme (see `surfaces` in theme.js).
+ * Any of: color, roughness, metalness, flatShading, emissive, emissiveIntensity, opacity, rim.
+ * `emissive` is the surface's own inner glow; day/night scale it with `surfaceGlow`.
+ * `rim` makes the edges glow and turn solid, so a see-through surface (opacity < 1) reads like glass.
+ */
+function build(s) {
+  const material = new THREE.MeshStandardMaterial({
+    color: s.color,
+    roughness: s.roughness ?? 1,
+    metalness: s.metalness ?? 0,
+    flatShading: !!s.flatShading,
+    emissive: s.emissive ?? '#000000',
+    emissiveIntensity: s.emissiveIntensity ?? 1,
+    transparent: s.opacity !== undefined && s.opacity < 1,
+    opacity: s.opacity ?? 1,
+  });
+  material.userData.baseGlow = material.emissiveIntensity;
+  if (s.rim) addRimGlow(material, s.rim);
+  return material;
 }
 
-export const materials = {
-  lightDirt: standard(linear(0.2234, 0.1086, 0.0307), 0.5),
-  lightGrass: standard(linear(0.1878, 0.3224, 0.046), 1),
-  darkDirt: standard(linear(0.14, 0.0694, 0.0206), 0.5),
-  darkGrass: standard(linear(0.0386, 0.1498, 0.0215), 1),
-  treeLeaves: standard(linear(0.0345, 0.2049, 0.0497), 0.8, { flatShading: true }),
-  wood: standard(linear(0.1653, 0.0656, 0.0254), 1, { flatShading: true }),
-  lightBushes: standard(linear(0.3687, 0.4064, 0.0442), 0.5, { flatShading: true }),
-  darkBushes: standard(linear(0.1021, 0.4064, 0.1196), 0.5, { flatShading: true }),
-  rock: standard(linear(0.1706, 0.1706, 0.1706), 1),
-  steps: standard(linear(0.4527, 0.3631, 0.2144), 0.5),
-  marble: standard(linear(0.7923, 0.8, 0.6717), 0.5),
-  stone: standard(linear(0.4227, 0.4292, 0.3241), 1),
+/** Brighter, more solid edges where the surface turns away from the camera (a fresnel rim). */
+function addRimGlow(material, strength) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.rimStrength = { value: strength };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float rimStrength;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        // (clamped: rounding can push the dot product a hair past 1, and pow() of a negative
+        // number is NaN, which the bloom then smears over the whole screen as a black flash)
+        float rim = pow(clamp(1.0 - abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), 2.5);
+        totalEmissiveRadiance += (emissive + diffuseColor.rgb * 0.15) * rim * rimStrength;
+        diffuseColor.a = mix(diffuseColor.a, 1.0, rim);`,
+      );
+  };
+}
 
-  // New for the playhub: the sandy base and its cliffs
-  sand: standard(linear(0.62, 0.47, 0.27), 1),
-  cliff: standard(linear(0.16, 0.085, 0.035), 0.9, { flatShading: true }),
+export const materials = Object.fromEntries(Object.entries(theme.surfaces).map(([name, s]) => [name, build(s)]));
 
-  // Portal trims
-  vinyl: standard(new THREE.Color('#15131c'), 0.28),
-  vinylGroove: standard(new THREE.Color('#2a2635'), 0.4),
-  gold: new THREE.MeshStandardMaterial({ color: new THREE.Color('#e7b84f'), roughness: 0.38, metalness: 0.35 }),
-  cloud: standard(new THREE.Color('#ffffff'), 0.85),
-  bubble: standard(new THREE.Color('#fffaf0'), 0.6),
-};
+/** Scale every surface's inner glow (theme day/night `surfaceGlow`). */
+export function applySurfaceGlow(k) {
+  for (const m of Object.values(materials)) m.emissiveIntensity = m.userData.baseGlow * k;
+}

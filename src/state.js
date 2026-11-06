@@ -1,8 +1,10 @@
+import { theme } from './world/theme.js';
+
 /**
  * A tiny shared store. UI and world both read from it and subscribe to changes,
  * so the corner buttons and the in-world switches always agree.
  */
-function readPref(key, fallback) {
+export function readPref(key, fallback) {
   try {
     const value = localStorage.getItem(`playhub:${key}`);
     return value === null ? fallback : JSON.parse(value);
@@ -11,7 +13,7 @@ function readPref(key, fallback) {
   }
 }
 
-function writePref(key, value) {
+export function writePref(key, value) {
   try {
     localStorage.setItem(`playhub:${key}`, JSON.stringify(value));
   } catch {
@@ -37,7 +39,8 @@ function createStore(initial) {
 }
 
 export const store = createStore({
-  theme: readPref('theme', 'light'), // 'light' | 'dark'
+  // 'light' | 'dark': the visitor's last choice, or the theme's default mood on a first visit
+  theme: readPref('theme', theme.defaultMood === 'night' ? 'dark' : 'light'),
   sound: readPref('sound', true),
   started: false,
   activePortal: null, // id of the portal whose card is open

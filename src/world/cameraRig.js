@@ -122,6 +122,8 @@ export class CameraRig {
         this.distanceGoal = this.cfg.distance;
       }
     }
+    // never let the view drift further from the character than the pan limit
+    if (this.panGoal.length() > this.cfg.maxPan) this.panGoal.setLength(this.cfg.maxPan);
     this.pan.lerp(this.panGoal, damp(10, dt));
 
     // smooth follow
