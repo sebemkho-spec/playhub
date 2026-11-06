@@ -53,6 +53,17 @@ body {
   cursor: grabbing;
 }
 
+/* phones and tablets: no double-tap zoom on the page (pinch-zoom is blocked in controls.js), no
+   long-press menu or grey tap flash on the 3D view */
+html.is-touch body {
+  touch-action: manipulation;
+}
+
+html.is-touch .scene {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .scene.is-pointing {
   cursor: pointer;
 }
@@ -1474,7 +1485,7 @@ html.is-touch body.is-started .joystick {
   background: var(--joy-run);
 }
 
-/* ── Character check (development only) ───────────────────────────────────── */
+/* ── Character check (only with ?debug in the URL) ──────────────────────────── */
 .diag {
   position: fixed;
   left: max(14px, env(safe-area-inset-left));

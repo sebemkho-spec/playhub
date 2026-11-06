@@ -9,7 +9,14 @@ npm run dev      # http://localhost:5173
 npm run build    # static site in dist/ (Vercel, Netlify, GitHub Pages…)
 ```
 
-To try it on your phone, run `npm run dev -- --host` and open the "Network" address it prints.
+To try it on your phone, run `npm run dev:phone` and open the "Network" address it prints on the
+phone (both on the same Wi-Fi; if your Mac asks whether node may accept connections, allow it).
+If the phone says the site can't be reached:
+
+- **iPhone + Chrome:** turn on Settings → Apps → Chrome → Local Network (Safari doesn't need it).
+- **Shared Wi-Fi** (school, dorm, office, café) often stops devices from reaching each other. Join
+  the Mac to the phone's Personal Hotspot instead, restart `npm run dev:phone`, and open the new
+  "Network" address it prints.
 
 ## Make it yours
 
@@ -123,8 +130,8 @@ Put the model at `public/models/character.glb`. Animations can be inside it
 `character.animationFiles` in `src/config.js`. The model is scaled to 1.8 m tall
 and blends smoothly between idle, walk and run.
 
-While you're developing, a **Character check** panel (and the browser console)
-says exactly what's wrong if something doesn't fit, for example:
+If something doesn't fit, the browser console says exactly what's wrong (and so does a
+**Character check** panel, if you add `?debug` to the address), for example:
 
 - an animation made for a different skeleton (lists the clip's bone names next to yours)
 - bone names that only differ by a prefix (`mixamorig1Hips` vs `mixamorigHips`), with the one-line fix
@@ -144,13 +151,16 @@ To use another font: `npm run font -- path/to/font.ttf` (writes that file).
 
 - **Keyboard:** WASD / arrow keys to move, hold Shift to run
 - **Mouse:** drag to orbit, right-drag (or ⌘/Ctrl-drag) to pan, scroll to zoom
-- **Touch:** drag anywhere to move (push further to run), pinch to zoom, two-finger drag to orbit
+- **Phones and tablets:** the joystick in the bottom-left corner walks (push further to run);
+  drag anywhere else to look around, even while walking; pinch with two fingers to zoom.
+  (A touchscreen laptop keeps the older scheme: one finger walks, two fingers look and zoom.)
 - Click the switches on the beach, or the buttons in the corner, for day/night and sound
 
 ## Handy while building
 
 - Press <kbd>`</kbd> to show every physics collider as a wireframe.
-- Add `?debug` to the URL for an FPS meter, the colliders and the character check on a built site.
+- Add `?debug` to the URL for an FPS meter, the colliders and the Character check panel (on the
+  dev server or a built site; without it the panel never shows).
 - In dev, `window.__playhub` exposes the scene, player, camera and physics in the console
   (e.g. `__playhub.teleport(0.4, -3)` moves you next to the first gate).
 

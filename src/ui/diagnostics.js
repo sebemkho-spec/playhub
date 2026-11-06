@@ -1,11 +1,10 @@
 /**
  * A small panel listing character/animation problems in plain English.
- * Shown while developing (npm run dev) or with ?debug in the URL.
- * Visitors to the live site never see it; the same messages go to the console.
+ * Only shown with ?debug in the URL, never on its own (not while developing, not on the live
+ * site, not on phones or computers). The same messages always go to the browser console.
  */
 export function showCharacterReport(root, report, { force = false } = {}) {
-  const visible = force || import.meta.env.DEV;
-  if (!visible || !report.length) return;
+  if (!force || !report.length) return; // force: ?debug is in the URL
 
   const worst = report.some((r) => r.level === 'error') ? 'error' : report.some((r) => r.level === 'warning') ? 'warning' : 'info';
   const heading = worst === 'error' ? 'Character needs attention' : worst === 'warning' ? 'Character check: a few notes' : 'Character check';
@@ -26,7 +25,7 @@ export function showCharacterReport(root, report, { force = false } = {}) {
         )
         .join('')}
     </ul>
-    <p class="diag__foot">Only shown in development. Details are also in the browser console.</p>`;
+    <p class="diag__foot">Only shown with ?debug in the address. Details are also in the browser console.</p>`;
   root.dataset.level = worst;
   root.hidden = false;
   root.querySelector('.diag__close').addEventListener('click', () => (root.hidden = true));

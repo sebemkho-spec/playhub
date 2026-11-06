@@ -2,15 +2,22 @@
  * Mouse, trackpad and touch handling on the 3D canvas.
  *
  *  Desktop  left-drag: orbit · right-drag (or ctrl/⌘-drag): pan · scroll / pinch: zoom · click: switches
- *  Touch    one finger: joystick (appears under your thumb; push far to run)
- *           two fingers: pinch to zoom, drag to orbit · tap: switches
+ *
+ *  Phones and tablets (a finger is the main pointer):
+ *           the bottom-left corner is the joystick: walk (it centres under your thumb; push far to run)
+ *           any other finger: drag to look around · two of them: pinch to zoom · tap: switches
+ *           every finger is tracked on its own, so you can walk and look around at the same time
+ *
+ *  Touchscreen laptops (a mouse or trackpad is the main pointer) keep the old touch scheme:
+ *           one finger: joystick under your thumb · two fingers: pinch to zoom, drag to orbit
  */
 const JOY_RADIUS = 58;
 const RUN_AT = 0.9; // push the knob this far (0-1) to run
 const TAP_SLOP = 9;
 const TAP_TIME = 380;
+const LOOK_SPEED = 1.25; // a finger turns the camera a touch faster than the mouse (phone drags are short)
 
-export function setupControls(canvas, { rig, input, joystickEl, onTap, onHover }) {
+export function setupControls(canvas, { rig, input, joystickEl, isTouch, onTap, onHover }) {
   const pointers = new Map();
   let mouseMode = null;
   let joyId = null;
@@ -22,6 +29,15 @@ export function setupControls(canvas, { rig, input, joystickEl, onTap, onHover }
   const knob = joystickEl.querySelector('[data-joystick-knob]');
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  /** The joystick's corner of the screen (phones): bottom-left, about half the width and height. */
+  const inJoystickZone = (x, y) => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    return x <= Math.min(w * 0.5, 260) && y >= h - Math.min(h * 0.5, 300);
+  };
+  /** The fingers looking around (every touch except the joystick's). */
+  const lookers = () => [...pointers.entries()].filter(([id, p]) => p.type !== 'mouse' && id !== joyId).map(([, p]) => p);
 
   canvas.addEventListener('pointerdown', (e) => {
     try {
@@ -37,13 +53,25 @@ export function setupControls(canvas, { rig, input, joystickEl, onTap, onHover }
       return;
     }
 
+    if (isTouch) {
+      // the first finger in the bottom-left corner walks; every other finger looks around
+      if (joyId === null && input.enabled && inJoystickZone(e.clientX, e.clientY)) {
+        startJoystick(e);
+      } else {
+        const looks = lookers();
+        if (looks.length === 2) gesture = measure(looks);
+      }
+      return;
+    }
+
+    // touchscreen laptops: the original scheme
     const touches = [...pointers.values()].filter((p) => p.type !== 'mouse');
     if (touches.length === 1 && !suppressJoystick && input.enabled) {
       startJoystick(e);
     } else if (touches.length >= 2) {
       stopJoystick();
       suppressJoystick = true; // don't let the leftover finger turn into a joystick
-      gesture = measure();
+      gesture = measure(touches);
     }
   });
 
@@ -66,8 +94,27 @@ export function setupControls(canvas, { rig, input, joystickEl, onTap, onHover }
     }
     if (e.pointerId === joyId) {
       moveJoystick(e.clientX, e.clientY);
-    } else if (gesture && pointers.size >= 2) {
-      const now = measure();
+      return;
+    }
+
+    if (isTouch) {
+      const looks = lookers();
+      if (looks.length === 1) {
+        rig.orbit(dx * LOOK_SPEED, dy * LOOK_SPEED, h); // one finger: look around
+      } else if (looks.length >= 2) {
+        // two fingers: pinch to zoom (and turn a little as they move together)
+        const now = measure(looks);
+        if (gesture && now.dist > 0 && gesture.dist > 0) {
+          rig.zoom(gesture.dist / now.dist);
+          rig.orbit(now.mx - gesture.mx, now.my - gesture.my, h);
+        }
+        gesture = now;
+      }
+      return;
+    }
+
+    if (gesture && pointers.size >= 2) {
+      const now = measure([...pointers.values()]);
       if (now.dist > 0 && gesture.dist > 0) rig.zoom(gesture.dist / now.dist);
       rig.orbit(now.mx - gesture.mx, now.my - gesture.my, h);
       gesture = now;
@@ -80,10 +127,17 @@ export function setupControls(canvas, { rig, input, joystickEl, onTap, onHover }
     pointers.delete(e.pointerId);
     const moved = Math.hypot(e.clientX - p.sx, e.clientY - p.sy);
     const quick = performance.now() - p.t < TAP_TIME;
-    if (e.type === 'pointerup' && moved < TAP_SLOP && quick && !gesture) onTap?.(e.clientX, e.clientY);
+    const wasJoystick = e.pointerId === joyId;
+    if (e.type === 'pointerup' && moved < TAP_SLOP && quick && !gesture && !wasJoystick) onTap?.(e.clientX, e.clientY);
 
-    if (e.pointerId === joyId) stopJoystick();
-    if (pointers.size < 2) gesture = null;
+    if (wasJoystick) stopJoystick();
+    if (isTouch) {
+      // from two look fingers down to one: that finger carries on looking, with no jump
+      const looks = lookers();
+      gesture = looks.length >= 2 ? measure(looks) : null;
+    } else if (pointers.size < 2) {
+      gesture = null;
+    }
     if (!pointers.size) {
       suppressJoystick = false;
       mouseMode = null;
@@ -107,12 +161,21 @@ export function setupControls(canvas, { rig, input, joystickEl, onTap, onHover }
     { passive: false },
   );
 
-  function measure() {
-    const [a, b] = [...pointers.values()];
+  // phones: never zoom or bounce the page itself (iOS Safari pinch-zooms the page through its own
+  // gesture events, even over the buttons and cards, unless told not to)
+  if (isTouch) {
+    const keep = (e) => e.preventDefault();
+    document.addEventListener('gesturestart', keep, { passive: false });
+    document.addEventListener('gesturechange', keep, { passive: false });
+  }
+
+  function measure(list) {
+    const [a, b] = list;
     if (!a || !b) return { dist: 0, mx: 0, my: 0 };
     return { dist: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
   }
 
+  /** The joystick centres under the thumb, so nothing moves until the thumb does. */
   function startJoystick(e) {
     joyId = e.pointerId;
     joyOrigin = { x: e.clientX, y: e.clientY };

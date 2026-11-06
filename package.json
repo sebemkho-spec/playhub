@@ -6,6 +6,7 @@
   "description": "Seb's Playhub: a little 3D island to explore, built with Three.js and Rapier.",
   "scripts": {
     "dev": "vite",
+    "dev:phone": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
     "font": "node scripts/build-typeface.mjs",

@@ -185,6 +185,7 @@ async function boot(loading) {
     rig,
     input,
     joystickEl: $('[data-joystick]'),
+    isTouch: isTouchDevice, // phones and tablets: corner joystick + a finger to look around
     onTap(x, y) {
       if (!started) return;
       const kind = pickSwitch(x, y);
@@ -393,5 +394,9 @@ const loading = new LoadingScreen($('[data-loader]'));
 boot(loading).catch((err) => {
   console.error('[playhub] Failed to start:', err);
   const noWebGL = /WebGL|context/i.test(String(err?.message));
-  loading.fail(noWebGL ? "This browser can't show 3D right now (WebGL is unavailable)." : 'Something went wrong while loading. Try refreshing the page.');
+  // a phone or tablet that can't run the 3D is sent to a computer; computers keep their own message
+  const no3D = isTouchDevice
+    ? "Hmm, there seems to be a problem loading up your Playhub. Please use desktop to open, what's inside is worth it!"
+    : "This browser can't show 3D right now (WebGL is unavailable).";
+  loading.fail(noWebGL ? no3D : 'Something went wrong while loading. Try refreshing the page.');
 });
