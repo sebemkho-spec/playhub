@@ -22,9 +22,14 @@ Different names or formats? Change the paths under `audio` in `src/config.js`.
 opening once every easter egg is found). The theme points at them (and sets their volumes) in
 `src/world/theme.js` → `sounds`, so they replace the files above while that theme is on.
 
+Those six play once, so they're small AAC `.m4a` files; their uncompressed WAVs are kept in
+`sound-originals/ethereal/` (outside `public/`, so they aren't shipped). The hover stays a WAV:
+AAC adds a few milliseconds of silence at the start, which would make its loop click.
+
 They aren't recordings: `scripts/make-ethereal-sounds.mjs` builds them from scratch
 (soft glassy chimes, airy swells, the hover and slow pad chords, all in E major so
 they sound nice together), so there's nothing to license or credit. To change one,
 edit its recipe in that script and run `npm run sounds` (or `npm run sounds -- unlock` for
-just one). To use your own recordings
+just one). It makes the `.m4a` files with macOS's `afconvert`; on another computer it says
+which ones it couldn't convert. To use your own recordings
 instead, put them in `ethereal/` with the same names (or change the paths in theme.js).

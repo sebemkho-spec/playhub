@@ -8,8 +8,10 @@
  *   node scripts/make-ethereal-sounds.mjs unlock pop          re-make just those
  *   node scripts/make-ethereal-sounds.mjs --preview <folder>  also draw a spectrogram of each
  *
- * Writes 16-bit WAV files to public/audio/ethereal/ (WAV so the hover loops without a gap);
- * the music becomes a much smaller .m4a.
+ * Writes the sounds to public/audio/ethereal/: the hover as a 16-bit WAV (so it loops without a
+ * gap), everything else as a much smaller AAC .m4a (made with macOS's afconvert). The one-shot
+ * effects' uncompressed WAVs go to sound-originals/ethereal/, outside public/, so they're kept
+ * but not shipped.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -19,6 +21,8 @@ import { crc32, deflateSync } from 'node:zlib';
 
 const SR = 44100;
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'audio', 'ethereal');
+// the one-shot effects' uncompressed WAVs (outside public/, so they aren't shipped)
+const ORIGINALS = join(dirname(fileURLToPath(import.meta.url)), '..', 'sound-originals', 'ethereal');
 
 // E major pentatonic (plus a few low notes for warmth)
 const NOTE = {
@@ -468,24 +472,34 @@ function unlock() {
 const previewAt = process.argv.indexOf('--preview');
 const previewDir = previewAt > 0 ? process.argv[previewAt + 1] : null;
 mkdirSync(OUT, { recursive: true });
+mkdirSync(ORIGINALS, { recursive: true });
 if (previewDir) mkdirSync(previewDir, { recursive: true });
 const all = { toggle, pop, portal, whoosh, hover, music, shatter, unlock };
+// the sounds that play once: the site gets a .m4a, and the WAV is kept in sound-originals/
+const ONE_SHOTS = ['toggle', 'pop', 'portal', 'whoosh', 'shatter', 'unlock'];
 const wanted = process.argv.slice(2).filter((a, i, args) => !a.startsWith('--') && args[i - 1] !== '--preview');
 for (const [name, make] of Object.entries(all).filter(([name]) => !wanted.length || wanted.includes(name))) {
   const { channels, peak, compress } = make();
-  const wav = join(OUT, `${name}.wav`);
+  const oneShot = ONE_SHOTS.includes(name);
+  const wav = join(oneShot ? ORIGINALS : OUT, `${name}.wav`);
   const info = writeWav(wav, channels, peak);
   if (previewDir) writeSpectrogram(join(previewDir, `${name}.png`), channels);
   let file = `${name}.wav`;
-  if (compress) {
-    // long sounds (the music) become AAC .m4a, about a tenth of the size (macOS's afconvert)
+  if (compress || oneShot) {
+    // AAC .m4a is about a tenth of the size (macOS's afconvert): the music at 96 kbps (its WAV
+    // isn't kept), the one-shots at 128 kbps. The hover stays a WAV: AAC adds a few milliseconds
+    // of silence at the start, which would make its loop click.
     try {
-      execFileSync('afconvert', ['-f', 'm4af', '-d', 'aac', '-b', '96000', wav, join(OUT, `${name}.m4a`)]);
-      rmSync(wav);
+      execFileSync('afconvert', ['-f', 'm4af', '-d', 'aac', '-b', oneShot ? '128000' : '96000', wav, join(OUT, `${name}.m4a`)]);
+      if (!oneShot) rmSync(wav);
       file = `${name}.m4a`;
       info.kb = Math.round(statSync(join(OUT, file)).size / 1024);
     } catch {
-      console.warn(`  (couldn't convert ${name}.wav to .m4a here: afconvert is macOS-only. The WAV works too; point theme.js at it.)`);
+      console.warn(
+        oneShot
+          ? `  (couldn't make ${name}.m4a here: afconvert is macOS-only. The new ${name}.wav is in sound-originals/ethereal/; convert it on a Mac, or copy it into public/audio/ethereal/ and point theme.js at the .wav.)`
+          : `  (couldn't convert ${name}.wav to .m4a here: afconvert is macOS-only. The WAV works too; point theme.js at it.)`,
+      );
     }
   }
   console.log(`${file}  ${info.seconds}s  ${info.channels === 1 ? 'mono' : 'stereo'}  ${info.kb} KB  loudest ${info.loudDb} dB  treble above 5 kHz ${info.treblePct}%`);
