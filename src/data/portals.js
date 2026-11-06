@@ -183,10 +183,9 @@ export const PORTALS = [
     id: 'thoughts',
     title: 'Return?',
     layout: 'return', // the way back to the plain home page, in its own plain-HTML link style
-    // "Home" goes to href="/": the front page of whichever site the playhub is on. If your home
-    // page lives at another address, put that in its place (e.g. href="https://example.com/").
+    // "Home" goes to Seb's plain home page (its own site, separate from the playhub's)
     body: `
-      <p class="return-home"><a href="/">Home</a></p>`,
+      <p class="return-home"><a href="https://seb-home.vercel.app/">Home</a></p>`,
     socials: [
       { icon: 'instagram', url: 'https://www.instagram.com/seb.e.kho/', label: 'Instagram (@seb.e.kho)' },
       { icon: 'email', url: 'mailto:seb.em.kho@gmail.com', label: 'Email Seb' },
