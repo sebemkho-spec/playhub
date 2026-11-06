@@ -355,12 +355,12 @@ const ethereal = derive(island, {
   sounds: {
     music: '/audio/ethereal/music.m4a', // slow, soft pads: no beat, no tune to follow
     footsteps: '/audio/ethereal/hover.wav', // a light hover while moving (a soul floats, it doesn't step)
-    portal: '/audio/ethereal/portal.wav',
-    toggle: '/audio/ethereal/toggle.wav',
-    whoosh: '/audio/ethereal/whoosh.wav',
-    pop: '/audio/ethereal/pop.wav',
-    shatter: '/audio/ethereal/shatter.wav', // the plain loading page cracking and breaking open
-    unlock: '/audio/ethereal/unlock.wav', // the Gallery opening, once every easter egg is found
+    portal: '/audio/ethereal/portal.m4a',
+    toggle: '/audio/ethereal/toggle.m4a',
+    whoosh: '/audio/ethereal/whoosh.m4a',
+    pop: '/audio/ethereal/pop.m4a',
+    shatter: '/audio/ethereal/shatter.m4a', // the plain loading page cracking and breaking open
+    unlock: '/audio/ethereal/unlock.m4a', // the Gallery opening, once every easter egg is found
     musicVolume: 0.3,
     footstepsVolume: 0.2, // just a breath, under everything else
     footstepsRunRate: 1.12, // hovers a little brighter when running
